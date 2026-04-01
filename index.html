@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study Hub — Gabriel Moreira | IBMEC CDIA</title>
+  <meta name="description" content="Hub de estudos pessoal de Gabriel Moreira — Ciência de Dados e IA, IBMEC.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1e2d45;
+      --primary: #3b82f6;
+      --primary-light: #60a5fa;
+      --accent: #f59e0b;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f97316;
+      --purple: #8b5cf6;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --card-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      --radius: 12px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #0d1b2a 0%, #1a1f3a 50%, #0d1b2a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      gap: 1rem;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .logo-sub { font-size: 0.75rem; color: var(--text-muted); font-weight: 400; }
+    .header-badge {
+      background: rgba(59,130,246,0.15);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: var(--primary-light);
+      padding: 0.25rem 0.75rem;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .header-date {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      display: none;
+    }
+    @media (min-width: 640px) { .header-date { display: block; } }
+
+    /* ── HERO ── */
+    .hero {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+    }
+    .hero h1 span { background: linear-gradient(135deg, var(--primary-light), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { color: var(--text-muted); font-size: 1rem; max-width: 600px; }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .stat-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+    .stat-value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+    .stat-value.blue { color: var(--primary-light); }
+    .stat-value.green { color: var(--green); }
+    .stat-value.orange { color: var(--orange); }
+    .stat-value.purple { color: var(--purple); }
+
+    /* ── SECTION ── */
+    .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+    }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── CARDS GRID ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* ── TOPIC CARD ── */
+    .topic-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      box-shadow: var(--card-shadow);
+    }
+    .topic-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(59,130,246,0.15);
+    }
+    .card-header {
+      padding: 1.25rem 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .discipline-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+    }
+    .card-type {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    /* ── DIFFICULTY SCORE ── */
+    .difficulty-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .difficulty-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .difficulty-dots {
+      display: flex;
+      gap: 4px;
+    }
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    .dot.filled-1 { background: var(--green); }
+    .dot.filled-2 { background: #84cc16; }
+    .dot.filled-3 { background: var(--accent); }
+    .dot.filled-4 { background: var(--orange); }
+    .dot.filled-5 { background: var(--red); }
+    .difficulty-text {
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .diff-easy { color: var(--green); }
+    .diff-medium { color: var(--accent); }
+    .diff-hard { color: var(--orange); }
+    .diff-very-hard { color: var(--red); }
+
+    /* ── CARD KEY POINTS ── */
+    .card-body {
+      padding: 0 1.5rem 1.25rem;
+    }
+    .key-points {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+    .key-points li {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    .key-points li::before {
+      content: '›';
+      color: var(--primary-light);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ── ACCORDION ── */
+    .accordion-btn {
+      width: 100%;
+      background: rgba(59,130,246,0.06);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 8px;
+      color: var(--primary-light);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      transition: background 0.15s;
+    }
+    .accordion-btn:hover { background: rgba(59,130,246,0.12); }
+    .accordion-btn .arrow { transition: transform 0.25s; font-size: 0.9rem; }
+    .accordion-btn.open .arrow { transform: rotate(180deg); }
+
+    .accordion-content {
+      display: none;
+      padding: 1rem 1.5rem;
+      background: rgba(0,0,0,0.2);
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .accordion-content.open { display: block; }
+    .accordion-content h2, .accordion-content h3, .accordion-content h4 {
+      color: var(--text);
+      margin: 1rem 0 0.5rem;
+      font-size: 0.95rem;
+    }
+    .accordion-content h2:first-child, .accordion-content h3:first-child { margin-top: 0; }
+    .accordion-content p { margin-bottom: 0.6rem; }
+    .accordion-content ul, .accordion-content ol { padding-left: 1.2rem; margin-bottom: 0.6rem; }
+    .accordion-content li { margin-bottom: 0.2rem; }
+    .accordion-content pre, .accordion-content code {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.15rem 0.4rem;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #93c5fd;
+    }
+    .accordion-content pre {
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+      white-space: pre;
+    }
+    .accordion-content pre code {
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .accordion-content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin: 0.75rem 0;
+    }
+    .accordion-content th {
+      background: rgba(59,130,246,0.1);
+      color: var(--primary-light);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .accordion-content td {
+      padding: 0.4rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .accordion-content tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .accordion-content strong { color: var(--text); font-weight: 600; }
+
+    /* ── PLAN CARD (full width) ── */
+    .plan-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--card-shadow);
+    }
+    .plan-header {
+      background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.1));
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .plan-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .plan-sub { font-size: 0.82rem; color: var(--text-muted); }
+    .plan-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .plan-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.3rem 0.75rem;
+      border-radius: 99px;
+    }
+    .badge-blue { background: rgba(59,130,246,0.15); color: var(--primary-light); border: 1px solid rgba(59,130,246,0.3); }
+    .badge-purple { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .badge-green { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .badge-red { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+
+    .plan-body { padding: 1.5rem; }
+    .schedule-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .schedule-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .schedule-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: top;
+    }
+    .schedule-table tr:last-child td { border-bottom: none; }
+    .schedule-table tr.exam-row td {
+      background: rgba(239,68,68,0.06);
+      font-weight: 700;
+      color: #f87171;
+    }
+    .day-label { font-weight: 600; color: var(--text); white-space: nowrap; }
+    .date-label { color: var(--text-dim); font-size: 0.75rem; }
+    .topic-pill {
+      display: inline-block;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.72rem;
+      color: var(--primary-light);
+      margin: 0.1rem;
+    }
+    .type-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .type-explain { background: rgba(16,185,129,0.12); color: #34d399; }
+    .type-practice { background: rgba(139,92,246,0.12); color: #a78bfa; }
+    .type-mock { background: rgba(245,158,11,0.12); color: #fcd34d; }
+    .type-exam { background: rgba(239,68,68,0.12); color: #f87171; }
+
+    /* ── DISCIPLINES OVERVIEW ── */
+    .disciplines-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .disc-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .disc-name { font-size: 0.85rem; font-weight: 700; line-height: 1.3; }
+    .disc-type {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .diff-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 0.25rem;
+    }
+    .diff-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.6s ease;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+    footer a { color: var(--primary-light); }
+
+    /* ── SCROLL ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .cards-grid { grid-template-columns: 1fr; }
+      .disciplines-grid { grid-template-columns: repeat(2, 1fr); }
+      .schedule-table { font-size: 0.76rem; }
+      .schedule-table th, .schedule-table td { padding: 0.4rem 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">📚</div>
+      <div>
+        <div>Study Hub</div>
+        <div class="logo-sub">Gabriel Moreira</div>
+      </div>
+    </div>
+    <span class="header-badge">CDIA · IBMEC</span>
+    <span class="header-date" id="currentDate"></span>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <h1>Seu hub de <span>estudos inteligente</span></h1>
+  <p>Resumos, planos e recursos gerados pelo agente de estudos — tudo num só lugar, acessível de qualquer dispositivo.</p>
+</section>
+
+<!-- ── STATS ── -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <span class="stat-label">Disciplinas</span>
+    <span class="stat-value blue">5</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Resumos</span>
+    <span class="stat-value green">2</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Planos Ativos</span>
+    <span class="stat-value orange">1</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Provas esta semana</span>
+    <span class="stat-value purple">2</span>
+  </div>
+</div>
+
+<!-- ── DISCIPLINES OVERVIEW ── -->
+<section class="section">
+  <h2 class="section-title">🎓 Disciplinas Ativas</h2>
+  <div class="disciplines-grid">
+    <div class="disc-card">
+      <div class="disc-name">Pensamento Computacional</div>
+      <div class="disc-type">Presencial</div>
+      <div class="difficulty-row"><div class="difficulty-dots" id="dots-pc"></div><span class="difficulty-text diff-easy">Introdutório</span></div>
+      <div class="diff-bar"><div class="diff-fill" style="width:30%; background:var(--green);"></div></div>
+    </div>
+    <div class="disc-card">
+      <div class="disc-name">Geometria Analítica e Álgebra Linear</div>
+      <div class="disc-type">Presencial</div>
+      <div class="difficulty-row"><div class="difficulty-dots" id="dots-gaal"></div><span class="difficulty-text diff-hard">Difícil</span></div>
+      <div class="diff-bar"><div class="diff-fill" style="width:80%; background:var(--orange);"></div></div>
+    </div>
+    <div class="disc-card">
+      <div class="disc-name">Cálculo a uma Variável</div>
+      <div class="disc-type">Presencial</div>
+      <div class="difficulty-row"><div class="difficulty-dots" id="dots-calc"></div><span class="difficulty-text diff-hard">Difícil</span></div>
+      <div class="diff-bar"><div class="diff-fill" style="width:75%; background:var(--orange);"></div></div>
+    </div>
+    <div class="disc-card">
+      <div class="disc-name">Matemática Discreta</div>
+      <div class="disc-type">Presencial</div>
+      <div class="difficulty-row"><div class="difficulty-dots" id="dots-md"></div><span class="difficulty-text diff-medium">Intermediário</span></div>
+      <div class="diff-bar"><div class="diff-fill" style="width:55%; background:var(--accent);"></div></div>
+    </div>
+    <div class="disc-card">
+      <div class="disc-name">Programação Estruturada</div>
+      <div class="disc-type">Presencial</div>
+      <div class="difficulty-row"><div class="difficulty-dots" id="dots-pe"></div><span class="difficulty-text diff-easy">Introdutório</span></div>
+      <div class="diff-bar"><div class="diff-fill" style="width:35%; background:#84cc16;"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STUDY MATERIALS ── -->
+<section class="section">
+  <h2 class="section-title">📖 Materiais de Estudo</h2>
+  <div class="cards-grid">
+    <div class="topic-card">
+      <div class="card-header">
+        <div class="card-meta">
+          <span class="discipline-tag" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);">Álgebra Linear</span>
+          <span class="card-type">📝 Explicação</span>
+        </div>
+        <div class="card-title">Matrizes e Multiplicação de Matrizes</div>
+        <div class="difficulty-row"><span class="difficulty-label">Dificuldade</span><div class="difficulty-dots" id="dots-mat"></div><span class="difficulty-text diff-medium">3/5 — Intermediário</span></div>
+      </div>
+      <div class="card-body">
+        <ul class="key-points">
+          <li>O que é uma matriz e sua notação (m×n)</li>
+          <li>Regra fundamental da multiplicação: colunas de A = linhas de B</li>
+          <li>Algoritmo passo a passo com exemplo numérico</li>
+          <li>Aplicações em Machine Learning e processamento de imagens</li>
+          <li>Propriedades: não-comutatividade, associatividade</li>
+          <li>Armadilhas de prova: ordem importa, compatibilidade de dimensões</li>
+        </ul>
+        <button class="accordion-btn" onclick="toggleAccordion(this)">Ver conteúdo completo <span class="arrow">▼</span></button>
+      </div>
+      <div class="accordion-content" id="content-mat"></div>
+    </div>
+    <div class="topic-card">
+      <div class="card-header">
+        <div class="card-meta">
+          <span class="discipline-tag" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25);">Cálculo</span>
+          <span class="card-type">📋 Resumo</span>
+        </div>
+        <div class="card-title">Limites e Derivadas — Cálculo a Uma Variável</div>
+        <div class="difficulty-row"><span class="difficulty-label">Dificuldade</span><div class="difficulty-dots" id="dots-lim"></div><span class="difficulty-text diff-hard">4/5 — Difícil</span></div>
+      </div>
+      <div class="card-body">
+        <ul class="key-points">
+          <li>Definição de limite e continuidade (3 condições)</li>
+          <li>Limites especiais: lim sin(x)/x = 1, limite de Euler</li>
+          <li>Regras de derivação: soma, produto, quociente, cadeia</li>
+          <li>Tabela de derivadas elementares</li>
+          <li>5 exemplos resolvidos do mais simples ao avançado</li>
+          <li>Conexão com gradient descent em Machine Learning</li>
+        </ul>
+        <button class="accordion-btn" onclick="toggleAccordion(this)">Ver resumo completo <span class="arrow">▼</span></button>
+      </div>
+      <div class="accordion-content" id="content-lim"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STUDY PLAN ── -->
+<section class="section">
+  <h2 class="section-title">🗓️ Plano de Estudos Ativo</h2>
+  <div class="plan-card">
+    <div class="plan-header">
+      <div>
+        <div class="plan-title">Semana de Provas — 31/03 a 07/04</div>
+        <div class="plan-sub">Matemática Discreta (sexta) · Programação Estruturada (segunda)</div>
+      </div>
+      <div class="plan-badges">
+        <span class="plan-badge badge-red">🔥 Prova dia 04/04</span>
+        <span class="plan-badge badge-purple">⚡ Prova dia 07/04</span>
+        <span class="plan-badge badge-green">7 dias</span>
+      </div>
+    </div>
+    <div class="plan-body">
+      <table class="schedule-table">
+        <thead><tr><th>Dia</th><th>Data</th><th>Disciplina</th><th>Tópicos</th><th>Duração</th><th>Tipo</th></tr></thead>
+        <tbody>
+          <tr><td><span class="day-label">Segunda</span></td><td><span class="date-label">31/03</span></td><td>Mat. Discreta</td><td><span class="topic-pill">Lógica proposicional</span><span class="topic-pill">Tabelas verdade</span></td><td>90 min</td><td><span class="type-badge type-explain">Teoria + Ex.</span></td></tr>
+          <tr><td><span class="day-label">Terça</span></td><td><span class="date-label">01/04</span></td><td>Mat. Discreta</td><td><span class="topic-pill">Quantificadores</span><span class="topic-pill">Predicados</span></td><td>90 min</td><td><span class="type-badge type-explain">Teoria + Ex.</span></td></tr>
+          <tr><td><span class="day-label">Quarta</span></td><td><span class="date-label">02/04</span></td><td>Mat. Discreta</td><td><span class="topic-pill">Teoria dos conjuntos</span><span class="topic-pill">Venn</span></td><td>90 min</td><td><span class="type-badge type-practice">Exercícios</span></td></tr>
+          <tr><td><span class="day-label">Quinta</span></td><td><span class="date-label">03/04</span></td><td>Mat. Discreta</td><td><span class="topic-pill">Indução matemática</span><span class="topic-pill">Provas</span><span class="topic-pill">Simulado</span></td><td>150 min</td><td><span class="type-badge type-mock">Simulado</span></td></tr>
+          <tr class="exam-row"><td><span class="day-label">Sexta</span></td><td><span class="date-label">04/04</span></td><td>🏆 PROVA</td><td colspan="2">Matemática Discreta</td><td><span class="type-badge type-exam">Avaliação</span></td></tr>
+          <tr><td><span class="day-label">Sábado</span></td><td><span class="date-label">05/04</span></td><td>Prog. Estruturada</td><td><span class="topic-pill">Variáveis</span><span class="topic-pill">Tipos de dados</span><span class="topic-pill">Operadores</span></td><td>90 min</td><td><span class="type-badge type-explain">Teoria + Prática</span></td></tr>
+          <tr><td><span class="day-label">Domingo</span></td><td><span class="date-label">06/04</span></td><td>Prog. Estruturada</td><td><span class="topic-pill">if/else · loops</span><span class="topic-pill">Funções</span><span class="topic-pill">Debugging</span></td><td>150 min</td><td><span class="type-badge type-mock">Prática + Simulado</span></td></tr>
+          <tr class="exam-row"><td><span class="day-label">Segunda</span></td><td><span class="date-label">07/04</span></td><td>🏆 PROVA</td><td colspan="2">Programação Estruturada</td><td><span class="type-badge type-exam">Avaliação</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <p>Gerado pelo <strong>Study Agent</strong> · <a href="https://estudante.ibmec.br" target="_blank">Portal IBMEC</a> · Atualizado em <span id="footerDate"></span></p>
+</footer>
+
+<script>
+const today = new Date();
+const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+document.getElementById('currentDate').textContent = today.toLocaleDateString('pt-BR', opts);
+document.getElementById('footerDate').textContent = today.toLocaleDateString('pt-BR');
+
+function buildDots(containerId, filled, total = 5) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 1; i <= total; i++) {
+    const d = document.createElement('span');
+    d.className = 'dot' + (i <= filled ? ` filled-${filled}` : '');
+    container.appendChild(d);
+  }
+}
+buildDots('dots-pc', 2);
+buildDots('dots-gaal', 4);
+buildDots('dots-calc', 4);
+buildDots('dots-md', 3);
+buildDots('dots-pe', 2);
+buildDots('dots-mat', 3);
+buildDots('dots-lim', 4);
+
+function renderMd(md) {
+  return md
+    .replace(/^#{4} (.+)/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^> (.+)/gm, '<blockquote>$1</blockquote>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/\n\n/g, '</p><p>')
+    + '</p>';
+}
+
+const contents = {
+  'content-mat': `
+<h2>O que é uma Matriz</h2>
+<p>Uma <strong>matriz</strong> é uma tabela retangular de números organizados em linhas e colunas. Uma matriz com m linhas e n colunas é chamada de matriz <strong>m×n</strong>.</p>
+<h2>Por que Importa</h2>
+<ul>
+<li><strong>Machine Learning:</strong> cada imagem é uma matriz de pixels; dataset = matriz amostras × features</li>
+<li><strong>Processamento de imagens:</strong> filtros e transformações são multiplicações de matrizes</li>
+<li><strong>Redes neurais:</strong> pesos armazenados em matrizes gigantescas</li>
+<li><strong>Recomendação:</strong> filtros colaborativos usam fatorização de matrizes</li>
+</ul>
+<h2>Regra Fundamental</h2>
+<p>Para multiplicar A (m×n) × B (n×p), colunas de A = linhas de B. Resultado: matriz (m×p).</p>
+<pre>c(i,j) = soma de a(i,k) × b(k,j) para k=1..n</pre>
+<h2>Exemplo A(3×2) × B(2×3)</h2>
+<pre>A=[1 2|3 4|5 6]  B=[5 6 7|8 9 10]
+C=[21 24 27|47 54 61|73 84 95]</pre>
+<h2>Propriedades</h2>
+<ul>
+<li>A×B ≠ B×A — NÃO comutativa ❌</li>
+<li>(A×B)×C = A×(B×C) — associativa ✅</li>
+<li>A×I = A — identidade ✅</li>
+</ul>
+<h2>⚠️ Cai na Prova</h2>
+<ul>
+<li>Calcular produto manualmente</li>
+<li>Verificar compatibilidade de dimensões</li>
+<li>A×B ≠ B×A — ordem importa!</li>
+</ul>
+  `,
+  'content-lim': `
+<h2>Limites</h2>
+<p>Descreve o valor que f(x) se aproxima quando x → a.</p>
+<h2>Limites Especiais (⚠️ cai muito!)</h2>
+<ul>
+<li>lim sen(x)/x = 1 quando x→0</li>
+<li>lim (1-cos x)/x² = 1/2 quando x→0</li>
+<li>lim (1+1/x)^x = e quando x→∞</li>
+<li>lim (eˣ-1)/x = 1 quando x→0</li>
+</ul>
+<h2>Regras de Derivação</h2>
+<ul>
+<li>c → 0 | xⁿ → n·x^(n-1) | eˣ → eˣ | ln(x) → 1/x</li>
+<li>sen(x) → cos(x) | cos(x) → −sen(x)</li>
+</ul>
+<h2>Regras Operacionais</h2>
+<ul>
+<li><strong>Soma:</strong> (f+g)' = f'+g'</li>
+<li><strong>Produto:</strong> (f·g)' = f'·g + f·g'</li>
+<li><strong>Quociente:</strong> (f/g)' = (f'g − fg')/g²</li>
+<li><strong>Cadeia:</strong> (f∘g)' = f'(g(x))·g'(x)</li>
+</ul>
+<h2>Exemplo — Regra da Cadeia</h2>
+<pre>f(x)=(3x²+2)⁵  →  f'(x)=30x·(3x²+2)⁴</pre>
+<h2>⚠️ Pegadinhas</h2>
+<ul>
+<li>Esquecer regra da cadeia em funções compostas</li>
+<li>Sinal errado no quociente: numerador = f'g − fg'</li>
+<li>Indeterminações 0/0 — fatorar ou L'Hôpital</li>
+<li>(cos)' = −sen — cuidado com o sinal!</li>
+</ul>
+<h2>Conexão com IA/ML</h2>
+<p>Gradient Descent usa derivadas para minimizar funções de custo. <strong>Essencial para backpropagation!</strong></p>
+  `
+};
+
+Object.keys(contents).forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = contents[id];
+});
+
+function toggleAccordion(btn) {
+  btn.classList.toggle('open');
+  const content = btn.closest('.card-body').nextElementSibling;
+  content.classList.toggle('open');
+}
+</script>
+</body>
+</html>
