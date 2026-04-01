@@ -8,6 +8,7 @@ export default async function handler(req, res) {
   const groqKey = process.env.GROQ_API_KEY;
   const redisUrl = process.env.KV_REST_API_URL;
   const redisToken = process.env.KV_REST_API_TOKEN;
+  const redisKey = 'history:' + from;
 
   // Data atual
   const now = new Date();
@@ -43,19 +44,19 @@ REGRAS:
 - Use formatacao WhatsApp: *negrito*, _italico_
 - Maximo 500 caracteres. Se longo, divida e pergunte se quer continuar
 - Exercicios: crie 3 problemas praticos com gabarito
-- Seja motivador e encorajador`;
+- Seja motivador e encorajador
+- Voce TEM memoria: lembre-se das mensagens anteriores desta conversa`;
 
-  // Buscar historico do Redis
+  // Buscar historico do Redis (GET simples)
   let history = [];
   try {
-    const redisKey = 'history:' + from;
     const getRes = await fetch(redisUrl + '/get/' + encodeURIComponent(redisKey), {
-      headers: { Authorization: 'Bearer ' + redisToken }
+      headers: { 'Authorization': 'Bearer ' + redisToken }
     });
     const getData = await getRes.json();
     if (getData.result) {
-      history = JSON.parse(getData.result);
-      if (!Array.isArray(history)) history = [];
+      const parsed = JSON.parse(getData.result);
+      if (Array.isArray(parsed)) history = parsed;
     }
   } catch (e) {
     history = [];
@@ -88,14 +89,14 @@ REGRAS:
       reply = data.choices[0].message.content.trim();
     }
 
-    // Salvar historico atualizado no Redis (TTL 24h)
+    // Salvar historico atualizado no Redis usando comando array (formato correto Upstash)
     try {
       const newHistory = [...history, { role: 'user', content: userMsg }, { role: 'assistant', content: reply }];
-      const redisKey = 'history:' + from;
-      await fetch(redisUrl + '/set/' + encodeURIComponent(redisKey), {
+      // Upstash REST API: POST para a raiz com array de comando Redis
+      await fetch(redisUrl, {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + redisToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: JSON.stringify(newHistory), ex: 86400 })
+        headers: { 'Authorization': 'Bearer ' + redisToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', redisKey, JSON.stringify(newHistory), 'EX', '86400'])
       });
     } catch (e) {}
 
@@ -106,4 +107,4 @@ REGRAS:
   const xml = '<?xml version="1.0" encoding="UTF-8"?><Response><Message><Body>' + reply + '</Body></Message></Response>';
   res.setHeader('Content-Type', 'text/xml');
   return res.status(200).send(xml);
-}
+    }
