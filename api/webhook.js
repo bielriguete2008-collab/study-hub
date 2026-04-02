@@ -6,9 +6,8 @@ export default async function handler(req, res) {
   if (!userMsg) return res.status(200).send('<Response></Response>');
 
   const groqKey = process.env.GROQ_API_KEY;
-  const redisUrl = process.env.KV_REST_API_URL;
-  const redisToken = process.env.KV_REST_API_TOKEN;
-  const redisKey = 'history:' + from;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
   // Data atual
   const now = new Date();
@@ -30,42 +29,23 @@ PROVAS PROXIMAS:
 - Matematica Discreta: 04/04 (${c1})
 - Programacao Estruturada: 07/04 (${c2})
 
-DISCIPLINAS DO SEMESTRE:
-1. Pensamento Computacional (dificuldade 2/5)
-2. GAAL - Geometria Analitica e Algebra Linear (dificuldade 4/5)
-3. Calculo I (dificuldade 4/5)
-4. Matematica Discreta (dificuldade 3/5)
-5. Programacao Estruturada (dificuldade 2/5)
+Seu papel e ajudar o Gabriel a estudar, revisar materias, criar resumos, montar planos de estudo e se preparar para provas. Seja direto, didatico e motivador. Responda sempre em portugues. Mantenha o contexto da conversa e lembre do que foi dito anteriormente.`;
 
-LINK DO HUB: https://bielriguete2008-collab.github.io/study-hub/
-
-REGRAS:
-- Responda SEMPRE em portugues brasileiro informal
-- Use formatacao WhatsApp: *negrito*, _italico_
-- Maximo 500 caracteres. Se longo, divida e pergunte se quer continuar
-- Exercicios: crie 3 problemas praticos com gabarito
-- Seja motivador e encorajador
-- Voce TEM memoria: lembre-se das mensagens anteriores desta conversa`;
-
-  // Buscar historico do Redis (GET simples)
+  // Buscar historico do Supabase
   let history = [];
   try {
-    const getRes = await fetch(redisUrl + '/get/' + encodeURIComponent(redisKey), {
-      headers: { 'Authorization': 'Bearer ' + redisToken }
-    });
-    const getData = await getRes.json();
-    if (getData.result) {
-      const parsed = JSON.parse(getData.result);
-      if (Array.isArray(parsed)) history = parsed;
+    const getRes = await fetch(
+      supabaseUrl + '/rest/v1/conversations?phone=eq.' + encodeURIComponent(from) + '&select=history',
+      { headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey } }
+    );
+    const rows = await getRes.json();
+    if (rows && rows[0] && Array.isArray(rows[0].history)) {
+      history = rows[0].history;
     }
-  } catch (e) {
-    history = [];
-  }
+  } catch (e) { history = []; }
 
-  // Manter apenas as ultimas 20 mensagens (10 trocas)
   if (history.length > 20) history = history.slice(history.length - 20);
 
-  // Montar mensagens para o Groq
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history,
@@ -77,26 +57,25 @@ REGRAS:
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        max_tokens: 400,
-        temperature: 0.7
-      })
+      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages, max_tokens: 400, temperature: 0.7 })
     });
     const data = await response.json();
     if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
       reply = data.choices[0].message.content.trim();
     }
 
-    // Salvar historico atualizado no Redis usando comando array (formato correto Upstash)
+    // Salvar historico no Supabase (upsert)
     try {
       const newHistory = [...history, { role: 'user', content: userMsg }, { role: 'assistant', content: reply }];
-      // Upstash REST API: POST para a raiz com array de comando Redis
-      await fetch(redisUrl, {
+      await fetch(supabaseUrl + '/rest/v1/conversations', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + redisToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify(['SET', redisKey, JSON.stringify(newHistory), 'EX', '86400'])
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': 'Bearer ' + supabaseKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({ phone: from, history: newHistory, updated_at: new Date().toISOString() })
       });
     } catch (e) {}
 
@@ -107,4 +86,4 @@ REGRAS:
   const xml = '<?xml version="1.0" encoding="UTF-8"?><Response><Message><Body>' + reply + '</Body></Message></Response>';
   res.setHeader('Content-Type', 'text/xml');
   return res.status(200).send(xml);
-    }
+}
