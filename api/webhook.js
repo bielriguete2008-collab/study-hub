@@ -3,36 +3,70 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
 
-  // ── Parse ZapResponder webhook payload ───────────────────────────────────────
-  // ZapResponder POSTs incoming messages with: chatId, message, type, fromMe, mediaUrl, name
-  // Some versions use nested "data" or "contact" objects — handle both patterns.
-  const raw = body.data || body;
+  // ── Detectar e normalizar formato do webhook ──────────────────────────────
+  // Suporta: Evolution API v2 e ZapResponder
+  let from = '', userMsg = '', hasImage = false, imageUrl = null, imageCaption = '';
 
-  const fromMe = raw.fromMe === true || raw.fromMe === 'true';
-  if (fromMe) return res.status(200).json({ ok: true });
+  // ── Evolution API format ──────────────────────────────────────────────────
+  // Payload: { event: "messages.upsert", instance: "studyhub", data: { key: {...}, message: {...}, messageType: "..." } }
+  const isEvolution = body.event === 'messages.upsert' && body.data?.key;
+  if (isEvolution) {
+    const d = body.data;
+    const key = d.key || {};
 
-  // Extract phone number (chatId comes as "5521999999999" or "5521999999999@c.us")
-  const chatId = (raw.chatId || raw.phone || raw.contact?.phone || raw.from || '').toString();
-  const from = chatId.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@g.us', '').trim();
-  if (!from || from === 'status' || from.length < 8) return res.status(200).json({ ok: true });
+    // Ignorar mensagens enviadas pelo bot
+    if (key.fromMe === true) return res.status(200).json({ ok: true });
 
-  // Extract text message
-  const msgType = (raw.type || '').toLowerCase(); // text, image, video, audio, document, sticker
-  const userMsg = (
-    raw.message ||
-    raw.body ||
-    raw.text ||
-    raw.content ||
-    ''
-  ).toString().trim();
+    // Ignorar status updates e grupos
+    const remoteJid = (key.remoteJid || '').toString();
+    if (remoteJid.includes('@g.us') || remoteJid === 'status@broadcast') return res.status(200).json({ ok: true });
 
-  // Extract image info
-  const hasImage = msgType === 'image' || !!(raw.mediaUrl && ['image', 'video'].includes(msgType));
-  const imageCaption = (raw.caption || raw.imageCaption || '').trim();
-  const imageUrl = raw.mediaUrl || raw.imageUrl || null;
-  const imageBase64 = null; // ZapResponder doesn't send base64 inline
+    // Extrair numero limpo
+    from = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').trim();
+    if (!from || from.length < 8) return res.status(200).json({ ok: true });
 
-  // Ignorar mensagens sem conteúdo útil
+    // Extrair mensagem de texto
+    const msg = d.message || {};
+    userMsg = (
+      msg.conversation ||
+      msg.extendedTextMessage?.text ||
+      msg.imageMessage?.caption ||
+      msg.videoMessage?.caption ||
+      ''
+    ).toString().trim();
+
+    // Extrair imagem
+    const msgType = (d.messageType || '').toLowerCase();
+    if (msgType === 'imagemessage' || msg.imageMessage) {
+      hasImage = true;
+      imageUrl = msg.imageMessage?.url || null;
+      imageCaption = (msg.imageMessage?.caption || '').trim();
+    }
+
+    console.log(`[Evolution] from=${from} type=${d.messageType} msg="${userMsg}"`);
+
+  } else {
+    // ── ZapResponder / formato generico ───────────────────────────────────
+    const raw = body.data || body;
+
+    const fromMe = raw.fromMe === true || raw.fromMe === 'true';
+    if (fromMe) return res.status(200).json({ ok: true });
+
+    const chatId = (raw.chatId || raw.phone || raw.contact?.phone || raw.from || '').toString();
+    from = chatId.replace('@c.us', '').replace('@s.whatsapp.net', '').replace('@g.us', '').trim();
+    if (!from || from === 'status' || from.length < 8) return res.status(200).json({ ok: true });
+
+    const msgType = (raw.type || '').toLowerCase();
+    userMsg = (raw.message || raw.body || raw.text || raw.content || '').toString().trim();
+
+    hasImage = msgType === 'image' || !!(raw.mediaUrl && ['image', 'video'].includes(msgType));
+    imageCaption = (raw.caption || raw.imageCaption || '').trim();
+    imageUrl = raw.mediaUrl || raw.imageUrl || null;
+
+    console.log(`[ZapResponder] from=${from} type=${msgType} msg="${userMsg}"`);
+  }
+
+  // Ignorar mensagens sem conteudo util
   if (!userMsg && !hasImage) return res.status(200).json({ ok: true });
 
   const groqKey = process.env.GROQ_API_KEY;
@@ -40,6 +74,9 @@ export default async function handler(req, res) {
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
   const zapToken = process.env.ZAPRESPONDER_TOKEN;
   const zapDepartmentId = process.env.ZAPRESPONDER_DEPARTMENT_ID;
+  const evoApiUrl = process.env.EVOLUTION_URL;
+  const evoApiKey = process.env.EVOLUTION_API_KEY;
+  const evoInstance = process.env.EVOLUTION_INSTANCE;
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   const stripePriceId = process.env.STRIPE_PRICE_ID;
   const mpAccessToken = process.env.MP_ACCESS_TOKEN; // Mercado Pago
@@ -56,43 +93,60 @@ export default async function handler(req, res) {
   try {
 
 
-  // ── sendMessage via ZapResponder API ─────────────────────────────────────
+  // ── sendMessage — Evolution API (primario) ou ZapResponder (fallback) ────
   const sendMessage = async (phone, message) => {
-    try {
-      await fetch(`https://api.zapresponder.com.br/api/whatsapp/message/${zapDepartmentId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${zapToken}`
-        },
-        body: JSON.stringify({
-          type: 'text',
-          message,
-          number: phone,
-          showInChat: true
-        })
-      });
-    } catch (e) { console.error('sendMessage error:', e); }
+    // Tentar Evolution API primeiro
+    if (evoApiUrl && evoApiKey && evoInstance) {
+      try {
+        const r = await fetch(`${evoApiUrl}/message/sendText/${evoInstance}`, {
+          method: 'POST',
+          headers: { 'apikey': evoApiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: phone, text: message })
+        });
+        const d = await r.json();
+        if (!d.error && (d.key || d.id || r.status === 201)) {
+          console.log(`[Evolution] Mensagem enviada para ${phone}`);
+          return;
+        }
+      } catch (e) { console.error('Evolution sendMessage error:', e.message); }
+    }
+    // Fallback: ZapResponder
+    if (zapToken && zapDepartmentId) {
+      try {
+        await fetch(`https://api.zapresponder.com.br/api/whatsapp/message/${zapDepartmentId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${zapToken}` },
+          body: JSON.stringify({ type: 'text', message, number: phone, showInChat: true })
+        });
+        console.log(`[ZapResponder] Mensagem enviada para ${phone}`);
+      } catch (e) { console.error('ZapResponder sendMessage error:', e.message); }
+    }
   };
 
-  // ── sendImage via ZapResponder API ─────────────────────────────────────────────
+  // ── sendImageMessage — Evolution API (primario) ou ZapResponder (fallback) ─
   const sendImageMessage = async (phone, url, caption = '') => {
-    try {
-      await fetch(`https://api.zapresponder.com.br/api/whatsapp/message/${zapDepartmentId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${zapToken}`
-        },
-        body: JSON.stringify({
-          type: 'image',
-          url,
-          message: caption,
-          number: phone,
-          showInChat: true
-        })
-      });
-    } catch (e) { console.error('sendImageMessage error:', e); }
+    // Evolution API
+    if (evoApiUrl && evoApiKey && evoInstance) {
+      try {
+        const r = await fetch(`${evoApiUrl}/message/sendMedia/${evoInstance}`, {
+          method: 'POST',
+          headers: { 'apikey': evoApiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: phone, mediatype: 'image', media: url, caption })
+        });
+        const d = await r.json();
+        if (!d.error && (d.key || r.status === 201)) return;
+      } catch (e) { console.error('Evolution sendImage error:', e.message); }
+    }
+    // Fallback: ZapResponder
+    if (zapToken && zapDepartmentId) {
+      try {
+        await fetch(`https://api.zapresponder.com.br/api/whatsapp/message/${zapDepartmentId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${zapToken}` },
+          body: JSON.stringify({ type: 'image', url, message: caption, number: phone, showInChat: true })
+        });
+      } catch (e) { console.error('ZapResponder sendImage error:', e.message); }
+    }
   };
   // ── Carregar dados do usuário ──────────────────────────────────────────────────────────
   let isNewUser = false;
