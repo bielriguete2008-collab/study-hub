@@ -52,8 +52,9 @@ export default async function handler(req, res) {
 
   const FREE_DAILY_LIMIT = 20;
 
-  // ── Responder 200 imediatamente para o ZapResponder não retentar ───────────────────
-  res.status(200).json({ ok: true });
+  // ── Processar tudo antes de responder (Vercel encerra após res.end()) ───────
+  try {
+
 
   // ── sendMessage via ZapResponder API ─────────────────────────────────────
   const sendMessage = async (phone, message) => {
@@ -475,5 +476,10 @@ export default async function handler(req, res) {
     const newBadges = addBadges(badges, points, streakDays);
     await sendMessage(from, aiReply);
     await saveToSupabase(history, points, streakDays, newBadges, plan, dailyCount, null, examMode);
+  }
+
+  } finally {
+    // Responder ao ZapResponder após todo o processamento
+    if (!res.headersSent) res.status(200).json({ ok: true });
   }
 }
