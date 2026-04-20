@@ -1,6 +1,15 @@
 {
-    "rewrites": [
-          { "source": "/((?!api/).*)", "destination": "/index.html" }
-    ],
-    "crons": [{ "path": "/api/cron-streak", "schedule": "0 23 * * *" }]
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "api/*.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron-streak", "schedule": "0 23 * * *" },
+    { "path": "/api/cron-tokens-reset", "schedule": "1 0 1 * *" }
+  ]
 }

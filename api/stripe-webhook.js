@@ -1,129 +1,40 @@
 import Stripe from 'stripe';
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
+export const config = { api: { bodyParser: false } };
 async function getRawBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
+  return new Promise((resolve, reject) => { const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', () => resolve(Buffer.concat(chunks))); req.on('error', reject); });
 }
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(200).send('Stripe Webhook OK');
-
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  const evolutionUrl = process.env.EVOLUTION_URL;
-  const evolutionApiKey = process.env.EVOLUTION_API_KEY;
-  const evolutionInstance = process.env.EVOLUTION_INSTANCE;
-
-  const stripe = new Stripe(stripeSecretKey);
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
   const rawBody = await getRawBody(req);
-  const sig = req.headers['stripe-signature'];
-
   let event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-  } catch (err) {
-    console.error('Webhook signature error:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+  try { event = stripe.webhooks.constructEvent(rawBody, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET); }
+  catch (err) { return res.status(400).send(`Webhook Error: ${err.message}`); }
 
-  const sendWhatsApp = async (phone, message) => {
-    try {
-      await fetch(`${evolutionUrl}/message/sendText/${evolutionInstance}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': evolutionApiKey },
-        body: JSON.stringify({ number: phone, text: message })
-      });
-    } catch (e) { console.error('WhatsApp send error:', e); }
-  };
+  const sbUrl = process.env.SUPABASE_URL, sbKey = process.env.SUPABASE_SERVICE_KEY;
+  const evoUrl = process.env.EVOLUTION_URL, evoKey = process.env.EVOLUTION_API_KEY, evoInst = process.env.EVOLUTION_INSTANCE;
+  const sbH = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+  const sendWA = async (phone, msg) => { try { await fetch(`${evoUrl}/message/sendText/${evoInst}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': evoKey }, body: JSON.stringify({ number: phone, text: msg }) }); } catch(e){} };
 
-  // ââ Pagamento confirmado â ativar plano Pro âââââââââââââââââââââââââââââââ
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const phone = session.metadata?.phone;
-
+    const s = event.data.object, phone = s.metadata?.phone;
     if (phone) {
-      try {
-        await fetch(supabaseUrl + '/rest/v1/conversations', {
-          method: 'POST',
-          headers: {
-            'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey,
-            'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
-          },
-          body: JSON.stringify({
-            phone,
-            plan: 'pro',
-            stripe_customer_id: session.customer,
-            stripe_subscription_id: session.subscription,
-            updated_at: new Date().toISOString()
-          })
-        });
-
-        await sendWhatsApp(phone,
-          `ð *Bem-vindo ao Study Hub Pro!*\n\n` +
-          `Seu plano foi ativado com sucesso!\n\n` +
-          `â Mensagens ilimitadas\n` +
-          `â Quiz e modo prova sem limite\n` +
-          `â Suporte a imagens\n\n` +
-          `Bora estudar? ð Me conta o que vocÃª quer aprender hoje!`
-        );
-
-        console.log(`Plan upgraded to Pro for phone: ${phone}`);
-      } catch (e) {
-        console.error('Supabase update error:', e);
-      }
+      const priceId = s.line_items?.data?.[0]?.price?.id || '';
+      const plan = priceId === process.env.STRIPE_PRICE_PREMIUM ? 'premium' : 'pro';
+      const cap  = plan === 'premium' ? 8000 : 2000;
+      await fetch(sbUrl + '/rest/v1/students?phone=eq.' + encodeURIComponent(phone), { method: 'PATCH', headers: sbH, body: JSON.stringify({ plan, tokens_balance: cap, tokens_monthly_cap: cap, stripe_customer_id: s.customer, stripe_subscription_id: s.subscription, updated_at: new Date().toISOString() }) });
+      await sendWA(phone, `🎉 *Bem-vindo ao Study Hub ${plan === 'premium' ? 'Premium' : 'Pro'}!*\n\nPlano ativado! Você agora tem *${cap.toLocaleString('pt-BR')} créditos/mês*.\n\nBora estudar? 🚀`);
     }
   }
-
-  // ââ Assinatura cancelada â reverter para Free âââââââââââââââââââââââââââââ
   if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object;
-    const customerId = subscription.customer;
-
-    try {
-      const findRes = await fetch(
-        supabaseUrl + '/rest/v1/conversations?stripe_customer_id=eq.' + encodeURIComponent(customerId) + '&select=phone',
-        { headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey } }
-      );
-      const rows = await findRes.json();
-      const phone = rows?.[0]?.phone;
-
-      if (phone) {
-        await fetch(
-          supabaseUrl + '/rest/v1/conversations?phone=eq.' + encodeURIComponent(phone),
-          {
-            method: 'PATCH',
-            headers: {
-              'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ plan: 'free', updated_at: new Date().toISOString() })
-          }
-        );
-
-        await sendWhatsApp(phone,
-          `ð¢ *Sua assinatura Pro foi cancelada.*\n\n` +
-          `VocÃª voluou para o plano gratuito (20 msgs/dia).\n\n` +
-          `Se quiser voltar ao Pro, Ã© sÃ³ digitar */assinar*! ð`
-        );
-
-        console.log(`Plan reverted to Free for phone: ${phone}`);
-      }
-    } catch (e) {
-      console.error('Supabase downgrade error:', e);
+    const customerId = event.data.object.customer;
+    const findRes = await fetch(sbUrl + '/rest/v1/students?stripe_customer_id=eq.' + encodeURIComponent(customerId) + '&select=phone', { headers: { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey } });
+    const rows = await findRes.json();
+    const phone = rows?.[0]?.phone;
+    if (phone) {
+      await fetch(sbUrl + '/rest/v1/students?phone=eq.' + encodeURIComponent(phone), { method: 'PATCH', headers: sbH, body: JSON.stringify({ plan: 'free', tokens_monthly_cap: 150, updated_at: new Date().toISOString() }) });
+      await sendWA(phone, `😢 *Sua assinatura foi cancelada.*\n\nVocê voltou para o plano gratuito (150 créditos/mês).\n\nPara reativar: ${process.env.STRIPE_BILLING_URL || 'https://studyhub.app/planos'}`);
     }
   }
-
   res.status(200).json({ received: true });
 }

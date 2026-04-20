@@ -1,59 +1,53 @@
-# Study Hub 📚
+# Study Hub — Tutor de Estudos com IA no WhatsApp
 
-Tutor de estudos com Inteligência Artificial direto no WhatsApp.
-
-## Funcionalidades
-
-- 🧠 **Método Socrático** — o tutor faz perguntas para guiar o raciocínio
-- 📸 **Resolução por Foto** — manda foto do exercício e a IA explica passo a passo
-- 🎯 **Quiz Interativo** — múltipla escolha com A, B, C, D e pontuação
-- 📝 **Modo Pré-Prova** — revisão intensiva com comando `/prova [tema]`
-- 🔥 **Streaks e Badges** — acompanhe seu progresso diário
-- 💳 **Assinatura** — Pix (Mercado Pago) ou cartão (Stripe)
+Tutor inteligente via WhatsApp com método socrático, quiz, modo pré-prova, resolução de exercícios por foto e sistema de streaks/badges.
 
 ## Stack
+- **Bot:** Vercel Serverless Functions (Node.js)
+- **IA:** Groq (llama-3.3-70b + llama-4 vision)
+- **Banco:** Supabase (PostgreSQL)
+- **WhatsApp:** Evolution API (Railway)
+- **Pagamentos:** Stripe
+- **Cron:** Vercel Cron Jobs
 
-- **Webhook**: Vercel Serverless (`api/webhook.js`)
-- **IA Texto**: Groq `llama-3.3-70b-versatile`
-- **IA Visão**: Groq `meta-llama/llama-4-scout-17b-16e-instruct`
-- **Banco**: Supabase (PostgreSQL)
-- **WhatsApp**: Evolution API
-- **Pagamentos**: Stripe + Mercado Pago
-- **Cron**: Vercel Cron Jobs (notificação diária de streak às 23h UTC)
+## Estrutura
 
-## Variáveis de Ambiente
+```
+/
+├── index.html
+├── vercel.json
+└── api/
+    ├── webhook.js
+    ├── stripe-webhook.js
+    ├── cron-streak.js
+    └── cron-tokens-reset.js
+```
 
-```env
+## Variáveis de Ambiente (Vercel)
+
+```
 GROQ_API_KEY=
 SUPABASE_URL=
-SUPABASE_KEY=
+SUPABASE_SERVICE_KEY=
 EVOLUTION_URL=
 EVOLUTION_API_KEY=
 EVOLUTION_INSTANCE=
 STRIPE_SECRET_KEY=
+STRIPE_PRICE_PRO=
+STRIPE_PRICE_PREMIUM=
 STRIPE_WEBHOOK_SECRET=
-STRIPE_PRICE_ID=
-MP_ACCESS_TOKEN=
+STRIPE_BILLING_URL=
+JWT_SECRET=
+JWT_SALT=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 CRON_SECRET=
-NEXT_PUBLIC_URL=
 ```
 
 ## Deploy
 
-1. Fork este repositório
-2. Configure as variáveis de ambiente na Vercel
-3. Configure o webhook da Evolution API para `/api/webhook`
-4. Configure o webhook do Stripe para `/api/stripe-webhook`
-5. O cron de streak roda automaticamente via Vercel Cron
-
-## Comandos
-
-| Comando | Descrição |
-|---------|-----------|
-| `/ajuda` | Lista todos os comandos |
-| `/quiz [tema]` | Gera pergunta de múltipla escolha |
-| `/prova [tema]` | Revisão intensiva pré-prova |
-| `/stats` | Seus pontos, streak e badges |
-| `/plano` | Informações do plano atual |
-| `/assinar` | Link para assinar o Plano Pro |
-| `/cancelar` | Cancela a assinatura |
+```bash
+git add .
+git commit -m "feat: Study Hub v2 — multi-agent, multi-tenant, 60 agents"
+git push
+```
