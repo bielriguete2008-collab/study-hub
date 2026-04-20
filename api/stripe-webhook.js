@@ -1,123 +1,91 @@
-import Stripe from 'stripe';
+'use strict';
+/**
+ * api/stripe-webhook.js — Stripe webhook handler
+ * Atualiza plano do aluno após pagamento e notifica via ZapResponder
+ */
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { createClient } = require('@supabase/supabase-js');
+const { sendMessage }  = require('../lib/messaging');
 
-export const config = { api: { bodyParser: false } };
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
-async function getRawBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
-  });
-}
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).end();
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(200).send('Stripe Webhook OK');
-
-  const stripe        = new Stripe(process.env.STRIPE_SECRET_KEY);
-  const rawBody       = await getRawBody(req);
-  const sig           = req.headers['stripe-signature'];
-  const supabaseUrl   = process.env.SUPABASE_URL;
-  const supabaseKey   = process.env.SUPABASE_SERVICE_KEY;
-  const zapUrl        = process.env.ZAPRESPONDER_URL;
-  const zapKey        = process.env.ZAPRESPONDER_KEY;
-  const zapInstance   = process.env.ZAPRESPONDER_INSTANCE;
-
+  const sig = req.headers['stripe-signature'];
   let event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
   } catch (err) {
-    console.error('Webhook signature error:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('[stripe-webhook] Signature error:', err.message);
+    return res.status(400).json({ error: 'Invalid signature' });
   }
 
-  const sendWhatsApp = async (phone, text) => {
-    try {
-      await fetch(`${zapUrl}/message/sendText/${zapInstance}`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': zapKey },
-        body:    JSON.stringify({ number: phone, text })
-      });
-    } catch (e) { console.error('WhatsApp send error:', e); }
-  };
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const phone   = session.metadata?.phone;
+      const plan    = session.metadata?.plan || 'pro';
 
-  // ── Pagamento confirmado → ativar plano ─────────────────────────
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    const phone   = session.metadata?.phone;
-    const planId  = session.metadata?.plan || 'pro';
-
-    if (phone) {
-      try {
-        await fetch(supabaseUrl + '/rest/v1/students', {
-          method:  'PATCH',
-          headers: {
-            'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            plan: planId,
-            stripe_customer_id: session.customer,
-            stripe_subscription_id: session.subscription,
-            subscription_status: 'active',
-            updated_at: new Date().toISOString()
-          })
-        });
-
-        const labels = { pro: 'Pro (R$29,90/mês)', premium: 'Premium (R$59,90/mês)' };
-        await sendWhatsApp(phone,
-          `🎉 *Bem-vindo ao Study Hub ${labels[planId] || planId}!*\n\n` +
-          `Seu plano foi ativado com sucesso!\n\n` +
-          `✅ Créditos mensais renovados\n` +
-          `✅ Memória permanente ativada\n` +
-          `✅ Todos os agentes disponíveis\n\n` +
-          `Bora estudar? 🚀 Me conta o que você quer aprender hoje!`
-        );
-        console.log(`Plan upgraded to ${planId} for phone: ${phone}`);
-      } catch (e) {
-        console.error('Supabase update error:', e);
+      if (!phone) {
+        console.warn('[stripe-webhook] No phone in metadata');
+        return res.json({ ok: true });
       }
-    }
-  }
 
-  // ── Assinatura cancelada → reverter para Free ───────────────────
-  if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object;
-    const customerId   = subscription.customer;
+      // Atualiza plano no Supabase
+      const { error } = await supabase
+        .from('students')
+        .update({
+          plan,
+          stripe_customer_id: session.customer,
+          stripe_subscription_id: session.subscription,
+          plan_expires_at: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .eq('phone', phone);
 
-    try {
-      const findRes = await fetch(
-        supabaseUrl + '/rest/v1/students?stripe_customer_id=eq.' + encodeURIComponent(customerId) + '&select=phone',
-        { headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey } }
+      if (error) throw error;
+
+      // Notifica aluno via WhatsApp
+      const planName = plan === 'premium' ? 'Premium' : 'Pro';
+      await sendMessage(
+        phone,
+        `✅ *Pagamento confirmado!* Seu plano *${planName}* está ativo.\n\n🎓 Agora você tem acesso completo ao Study Hub. Me manda uma mensagem para começar!`
       );
-      const rows  = await findRes.json();
-      const phone = rows?.[0]?.phone;
-
-      if (phone) {
-        await fetch(
-          supabaseUrl + '/rest/v1/students?phone=eq.' + encodeURIComponent(phone),
-          {
-            method:  'PATCH',
-            headers: {
-              'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ plan: 'free', subscription_status: 'canceled', updated_at: new Date().toISOString() })
-          }
-        );
-
-        await sendWhatsApp(phone,
-          `😢 *Sua assinatura foi cancelada.*\n\n` +
-          `Você voltou para o plano gratuito (150 créditos/mês).\n\n` +
-          `Se quiser voltar, é só digitar */assinar*! 💙`
-        );
-        console.log(`Plan reverted to Free for phone: ${phone}`);
-      }
-    } catch (e) {
-      console.error('Supabase downgrade error:', e);
     }
-  }
 
-  res.status(200).json({ received: true });
-}
+    if (event.type === 'customer.subscription.deleted') {
+      const sub = event.data.object;
+      // Encontra aluno pelo subscription_id
+      const { data: students, error } = await supabase
+        .from('students')
+        .select('phone, name')
+        .eq('stripe_subscription_id', sub.id);
+
+      if (!error && students?.length > 0) {
+        const s = students[0];
+        // Downgrade para plano gratuito
+        await supabase
+          .from('students')
+          .update({ plan: 'free', stripe_subscription_id: null, plan_expires_at: null })
+          .eq('stripe_subscription_id', sub.id);
+
+        await sendMessage(
+          s.phone,
+          '⚠️ Sua assinatura foi cancelada e você voltou ao plano gratuito. Para reativar, acesse o link de pagamento ou me pergunte sobre os planos!'
+        );
+      }
+    }
+
+    return res.json({ received: true });
+  } catch (err) {
+    console.error('[stripe-webhook]', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+};
