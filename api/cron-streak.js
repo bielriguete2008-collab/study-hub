@@ -1,81 +1,58 @@
+'use strict';
 /**
- * Cron job — Lembrete diário de streak
- * Executa todo dia às 23:00 UTC (20:00 no Brasil, UTC-3)
- * Envia mensagem para usuários que NÃO estudaram hoje
+ * api/cron-streak.js — Cron diário de streak
+ * Envia lembrete via ZapResponder para alunos com streak ativo
  */
-export default async function handler(req, res) {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+const { createClient } = require('@supabase/supabase-js');
+const { sendMessage }  = require('../lib/messaging');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+module.exports = async (req, res) => {
+  // Verificação de segurança via CRON_SECRET
+  const auth = req.headers.authorization || '';
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  const zapUrl      = process.env.ZAPRESPONDER_URL;
-  const zapKey      = process.env.ZAPRESPONDER_KEY;
-  const zapInstance = process.env.ZAPRESPONDER_INSTANCE;
-
-  const today = new Date().toISOString().split('T')[0];
-
-  const sendWhatsApp = async (phone, text) => {
-    try {
-      await fetch(`${zapUrl}/message/sendText/${zapInstance}`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': zapKey },
-        body:    JSON.stringify({ number: phone, text })
-      });
-    } catch (e) { console.error('sendWhatsApp error:', e); }
-  };
-
   try {
-    const res1 = await fetch(
-      supabaseUrl + '/rest/v1/students' +
-      '?last_activity=neq.' + encodeURIComponent(today) +
-      '&last_activity=not.is.null' +
-      '&select=phone,streak_days,points,plan',
-      { headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey } }
-    );
-    const users = await res1.json();
+    // Busca alunos com streak > 0 e última mensagem há mais de 20h
+    const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+    const { data: students, error } = await supabase
+      .from('students')
+      .select('id, phone, name, streak_days, plan')
+      .gt('streak_days', 0)
+      .or(`last_message_at.lt.${cutoff},last_message_at.is.null`);
 
-    if (!Array.isArray(users) || users.length === 0) {
-      return res.status(200).json({ sent: 0, message: 'No inactive users found' });
+    if (error) throw error;
+    if (!students || students.length === 0) {
+      return res.json({ ok: true, sent: 0 });
     }
 
     let sent = 0;
-    for (const user of users) {
-      const { phone, streak_days, points } = user;
-      if (!phone) continue;
-
+    for (const s of students) {
+      const nome = (s.name || '').split(' ')[0] || 'Aluno';
+      const streak = s.streak_days || 0;
       let msg;
-      if (streak_days >= 7) {
-        msg =
-          `🔥 *Ei! Sua sequência de ${streak_days} dias está em risco!*\n\n` +
-          `Você ainda não estudou hoje. Manda qualquer dúvida pra mim e mantém seu streak! 💪\n\n` +
-          `_Você tem ${points} pontos — não deixe ir por água abaixo!_`;
-      } else if (streak_days >= 3) {
-        msg =
-          `📚 *${streak_days} dias de sequência — continue!*\n\n` +
-          `Que tal uma revisão rápida hoje? Pode ser só um quiz ou uma pergunta!\n\n` +
-          `*/quiz [matéria]* para começar agora 🎯`;
+      if (streak >= 30) {
+        msg = `🔥 *${nome}*, você tem ${streak} dias de streak! Incrível! Não perca agora — me manda uma mensagem para continuar seus estudos hoje!`;
+      } else if (streak >= 7) {
+        msg = `⚡ *${nome}*, ${streak} dias seguidos estudando! Continue a sequência — manda uma mensagem e vamos estudar juntos!`;
       } else {
-        msg =
-          `👋 *Lembrete de estudo!*\n\n` +
-          `Que tal dedicar 10 minutinhos hoje?\n\n` +
-          `Me manda uma dúvida ou faz um quiz:\n` +
-          `*/quiz [matéria]* 🎯\n\n` +
-          `_Construa o hábito de estudar todo dia!_ 🧠`;
+        msg = `📚 *${nome}*, lembrete diário: não esqueça de estudar hoje! Já são ${streak} dias de sequência. Me manda uma mensagem!`;
       }
 
-      await sendWhatsApp(phone, msg);
+      await sendMessage(s.phone, msg);
       sent++;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 500));
     }
 
-    console.log(`Streak reminders sent: ${sent}/${users.length}`);
-    return res.status(200).json({ sent, total: users.length });
-
-  } catch (e) {
-    console.error('Cron streak error:', e);
-    return res.status(500).json({ error: e.message });
+    return res.json({ ok: true, sent, total: students.length });
+  } catch (err) {
+    console.error('[cron-streak]', err.message);
+    return res.status(500).json({ error: err.message });
   }
-}
+};
