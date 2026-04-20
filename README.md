@@ -1,6 +1,6 @@
-# Study Hub — Tutor de Estudos com IA no WhatsApp
+# Study Hub â Tutor de Estudos com IA no WhatsApp
 
-Tutor inteligente via WhatsApp com método socrático, quiz, modo pré-prova, resolução de exercícios por foto e sistema de streaks/badges.
+Tutor inteligente via WhatsApp com mÃ©todo socrÃ¡tico, quiz, modo prÃ©-prova, resoluÃ§Ã£o de exercÃ­cios por foto e sistema de streaks/badges.
 
 ## Stack
 - **Bot:** Vercel Serverless Functions (Node.js)
@@ -14,16 +14,16 @@ Tutor inteligente via WhatsApp com método socrático, quiz, modo pré-prova, re
 
 ```
 /
-├── index.html
-├── vercel.json
-└── api/
-    ├── webhook.js
-    ├── stripe-webhook.js
-    ├── cron-streak.js
-    └── cron-tokens-reset.js
+âââ index.html
+âââ vercel.json
+âââ api/
+    âââ webhook.js
+    âââ stripe-webhook.js
+    âââ cron-streak.js
+    âââ cron-tokens-reset.js
 ```
 
-## Variáveis de Ambiente (Vercel)
+## VariÃ¡veis de Ambiente (Vercel)
 
 ```
 GROQ_API_KEY=
@@ -48,6 +48,6 @@ CRON_SECRET=
 
 ```bash
 git add .
-git commit -m "feat: Study Hub v2 — multi-agent, multi-tenant, 60 agents"
+git commit -m "feat: Study Hub v2 â multi-agent, multi-tenant, 60 agents"
 git push
 ```
